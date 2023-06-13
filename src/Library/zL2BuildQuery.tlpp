@@ -1,0 +1,199 @@
+#INCLUDE "tlpp-core.th"
+
+// ----------------------------------------------------------------------------------------------
+/*{Protheus.doc} zL2BuildQuery
+    L2BuildClass desenvolvida como caso de estudo, tem como objetivo, construir querys
+	menos complexas de forma pratica e semantico
+	Versão Beta, para por em ambiente produtivo é necessário efetuar testes de execução e lógica,
+	o código abaixo não oferece nenhum risco ao ambiente.
+
+    @author Leeung Meneses
+    @since 12/06/2023
+    @version Beta 1.0
+
+	@Modifications
+		Ex: 1.0.1 00/00/000 - Fulato  - DESCRIÇÃO DA ALTERAÇÃO
+		Ex: 1.0.2 00/00/000 - Fulato  - DESCRIÇÃO DA ALTERAÇÃO
+		Ex: 1.0.3 00/00/000 - Fulato  - DESCRIÇÃO DA ALTERAÇÃO
+
+*/
+// ----------------------------------------------------------------------------------------------
+
+NAMESPACE App.Library
+
+Class zL2BuildQuery
+
+	private data lDeleted as logical
+	private data lError as logical
+	private data aErrors as array
+	private data cNameQuery as character
+
+	private data cTable as character 	//Atributos auxiliares
+	private data aCampos as array		//Atributos auxiliares
+
+	private data cSelect as character
+	private data cTop as character
+	private data cFrom as character
+	private data cJoin as character
+	private data cWhere as character
+	private data cGroup as character
+	private data cOrder as character
+
+	public method new()
+
+	public method exibeDeletados() 		//D_E_L_E_T_ = ' '
+	public method nomeQuery()			//Exibida na query como comentário, para auxiliar na identificação em analises
+
+	public method selecione() 			//select
+	public method tabela() 				//from
+	public method junta() 				//join
+	public method onde() 				//where
+	public method ou() 					//.OR.
+	public method tudo() 				//all *
+	public method primeiro() 			//top 1
+	public method agregue() 			//joins
+	public method ordene() 				//order by
+	public method query() 				//query
+
+EndClass
+
+method new() class zL2BuildQuery
+	::lDeleted 		:= .F.
+	::cWhere 		:= " WHERE 1=1 "
+	::cTop 			:= " "
+	::cOrder 		:= " "
+	::cGroup 		:= " "
+	::cSelect 		:= " * "
+	::aCampos 		:= {}
+return self
+
+/* DEFINE A VISUALIZAÇAO DOS CAMPOS DELETADOS */
+method exibeDeletados(lOpcao as logical) class zL2BuildQuery
+	::lDeleted := lOpcao
+return
+
+/* DEFINE O NOME DA QUERY */
+method nomeQuery(cName as character) class zL2BuildQuery
+	::cNameQuery := cName
+return
+
+/* DEFINE OS CAMPOS RETORNADOS */
+method selecione(aCampos as array) class zL2BuildQuery
+	local nIdx := 1
+
+	::cSelect := ""
+
+	FOR nIdx := 1 to LEN(aCampos)
+		aadd(::aCampos,aCampos[nIdx])
+		::cSelect += aCampos[nIdx]
+		IIF( nIdx != len(aCampos), ::cSelect += ",", nil )
+	NEXT
+
+return nil
+
+/* TABELA PRINCIPAL DA CONSULTA */
+method tabela(cTable as character) class zL2BuildQuery
+	::cFrom := " FROM "+RetSqlName(cTable)+" (NOLOCK) "
+	::cTable := RetSqlName(cTable)
+return nil
+
+/* FAZ A INCLUSÃO DOS JOINS */
+method junta(cTable as character,aParam as array, cJoin as character) class zL2BuildQuery
+	local nIdx := 1
+
+	::cJoin += iif(cJoin != nil, cJoin," ") +" JOIN "+RetSqlName(cTable)+" (NOLOCK) ON "
+
+	IF !::lDeleted
+		AAdd(aParam,{RetSqlName(cTable)+".D_E_L_E_T_","' '"})
+	endif
+
+	for nIdx := 1 to LEN(aParam)
+		::cJoin += " "+aParam[nIdx][1]+" = "+aParam[nIdx][2]+" "
+		IF nIdx < len(aParam)
+			::cJoin += " AND "
+		ENDIF
+	next
+
+return nil
+
+/* INCLUI WHERE AND*/
+method onde(aFilter as array) class zL2BuildQuery
+
+	IF Len(aFilter) > 0
+		if GetSx3Cache(aFilter[1],"X3_TIPO") == "C"
+			::cWhere += " AND "+aFilter[1]+" "+aFilter[2]+" '"+Padr(aFilter[3],GetSx3Cache(aFilter[1],"X3_TAMANHO")," ")+"' "
+		ELSE
+			::cWhere += " AND "+aFilter[1]+" "+aFilter[2]+" '"+aFilter[3]+"' "
+		ENDIF
+	ENDIF
+
+return nil
+
+/* INCLUI WHERE OR */
+method ou(aFilter as array) class zL2BuildQuery
+
+	IF Len(aFilter) > 0
+		if GetSx3Cache(aFilter[1],"X3_TIPO") == "C"
+			::cWhere += " OR "+aFilter[1]+" "+aFilter[2]+" '"+Padr(aFilter[3],GetSx3Cache(aFilter[1],"X3_TAMANHO")," ")+"' "
+		ELSE
+			::cWhere += " OR "+aFilter[1]+" "+aFilter[2]+" '"+aFilter[3]+"' "
+		ENDIF
+	ENDIF
+
+return nil
+
+/* INCLUI O ORDER BY */
+method ordene(aOrder as array) class zL2BuildQuery
+
+
+	if(len(trim(::cOrder)) == 0 )
+		::cOrder := " ORDER BY "
+	else
+		::cOrder += " , "
+	endif
+
+	::cOrder += RetSqlName(aOrder[1])+"."+aOrder[2]+" "
+
+return nil
+
+/* INCLUI AS AGREGAÇÕES, COUNT, AVG, SUM*/
+method agregue(cTipo, cCampo, cAlias) class zL2BuildQuery
+	local nIdx := 1
+
+	::cSelect += " ,"+cTipo+"("+cCampo+") AS "+cAlias
+	::cGroup += " GROUP BY "
+	FOR nIdx:=1 to LEN(::aCampos)
+		::cGroup += ::aCampos[nIdx]
+		IF nIdx < LEN( ::aCampos )
+			::cGroup += ","
+		ENDIF
+	NEXT
+
+return nil
+
+/* CONSTRUI A QUERY COM TUDO QUE FOI INSERIDO */
+method query() class zL2BuildQuery
+	local cQuery := ""
+
+	cQuery += " SELECT /*BUILD_QUERY:"+::cNameQuery+"*/ "+::cTop+" "+::cSelect+" "
+	cQuery += ::cFrom
+	cQuery += ::cJoin
+	cQuery += iif(!::lDeleted .AND. !('D_E_L_E_T_' $ ::cWhere ), ::cWhere += " AND "+::cTable+".D_E_L_E_T_ = ' ' ",::cWhere)
+	cQuery += ::cGroup
+	cQuery += ::cOrder
+
+return cQuery
+
+/* EXECUTA A QUERY, RETORNANDO SOMENTE O 1 REGISTRO */
+method primeiro(nQReg) class zL2BuildQuery
+	local cAlias := ""
+	::cTop := " TOP "+cValToChar(nQReg)+" "
+	cAlias := MPSysOpenQuery(::query(),,,,/*aBindParam*/)
+return cAlias
+
+/* EXECUTA A QUERY RETORNANDO TODOS OS REGISTROS */
+method tudo() class zL2BuildQuery
+	local cAlias := ""
+	::cTop := "  "
+	cAlias :=  MPSysOpenQuery(::query(),,,,/*aBindParam*/)
+return cAlias

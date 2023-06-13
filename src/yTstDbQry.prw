@@ -19,7 +19,7 @@ user function YtstDbQry()
 	/* QUERYES MENOS COMPLEXAS ------------------------ COMPARATIVO SINTAXE PADRÃO SQL NO ADVPL*/
 	
 	// QUERY COM TOP 100
-	oBuildQuery := App.Library.zL2BuildQuery():new()	
+	oBuildQuery := Library.zL2BuildQuery():new()	
 	oBuildQuery:tabela("SB1") 							//cQuery := " SELECT TOP 100 * FROM RetSqlName('SB1') (NOLOCK) WHERE D_E_L_E_T_=' '
 
 	cAlias := oBuildQuery:primeiro(100) 				//EXECUTA RETORNANDO OS 100 PRIMEIROS REGISTROS			

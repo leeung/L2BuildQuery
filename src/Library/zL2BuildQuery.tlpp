@@ -19,7 +19,7 @@
 */
 // ----------------------------------------------------------------------------------------------
 
-NAMESPACE App.Library
+NAMESPACE Library
 
 Class zL2BuildQuery
 
